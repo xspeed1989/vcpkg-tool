@@ -956,6 +956,26 @@ namespace vcpkg::PostBuildLint
         OutdatedDynamicCrt outdated_crt;
     };
 
+    struct OutdatedDynamicCrtAndFileCompare
+    {
+        bool operator()(OutdatedDynamicCrtAndFile lhs, OutdatedDynamicCrtAndFile rhs) const
+        {
+            std::string str_lhs;
+            std::transform(lhs.outdated_crt.name.begin(),
+                           lhs.outdated_crt.name.end(),
+                           std::back_inserter(str_lhs),
+                           Strings::tolower_char);
+            str_lhs += lhs.file.native();
+            std::string str_rhs;
+            std::transform(rhs.outdated_crt.name.begin(),
+                           rhs.outdated_crt.name.end(),
+                           std::back_inserter(str_rhs),
+                           Strings::tolower_char);
+            str_rhs += rhs.file.native();
+            return str_lhs < str_rhs;
+        }
+    };
+
     static LintStatus check_outdated_crt_linkage_of_dlls(const std::vector<Path>& dlls,
                                                          const Path& dumpbin_exe,
                                                          const BuildInfo& build_info,
@@ -964,7 +984,7 @@ namespace vcpkg::PostBuildLint
         if (build_info.policies.is_enabled(BuildPolicy::ALLOW_OBSOLETE_MSVCRT)) return LintStatus::SUCCESS;
 
         std::vector<OutdatedDynamicCrtAndFile> dlls_with_outdated_crt;
-
+        std::set<OutdatedDynamicCrtAndFile, OutdatedDynamicCrtAndFileCompare> whitelist_outdated_crt;
         for (const Path& dll : dlls)
         {
             auto cmd_line = Command(dumpbin_exe).string_arg("/dependents").string_arg(dll);
@@ -974,6 +994,16 @@ namespace vcpkg::PostBuildLint
                 for (const OutdatedDynamicCrt& outdated_crt :
                      get_outdated_dynamic_crts(pre_build_info.platform_toolset))
                 {
+                    if (Strings::case_insensitive_ascii_contains(*output, "msvcrt.dll"))
+                    {
+                        whitelist_outdated_crt.insert({dll, "msvcrt.dll"});
+                        continue;
+                    }
+                    if (Strings::case_insensitive_ascii_contains(*output, "msvcp60.dll"))
+                    {
+                        whitelist_outdated_crt.insert({dll, "msvcp60.dll"});
+                        continue;
+                    }
                     if (Strings::case_insensitive_ascii_contains(*output, outdated_crt.name))
                     {
                         dlls_with_outdated_crt.push_back({dll, outdated_crt});
@@ -989,6 +1019,13 @@ namespace vcpkg::PostBuildLint
                                           maybe_output.error());
             }
         }
+        if (whitelist_outdated_crt.size())
+            print2(Color::success, "Detected system dynamic CRT in the following files:\n\n");
+        for (const auto& btf : whitelist_outdated_crt)
+        {
+            print2(Color::success, "    ", btf.file, ": ", btf.outdated_crt.name, "\n");
+        }
+        if (whitelist_outdated_crt.size()) return LintStatus::SUCCESS;
 
         if (!dlls_with_outdated_crt.empty())
         {

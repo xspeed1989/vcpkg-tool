@@ -80,6 +80,11 @@ namespace vcpkg
     {
         auto host_proc = get_host_processor();
         auto canonical_name = Strings::format("%s-%s", to_zstring_view(host_proc), get_host_os_name());
+#if defined(_WIN32)
+        canonical_name = Strings::format("%s-ltl-static-mt", to_zstring_view(host_proc), get_host_os_name());
+#else
+        canonical_name = Strings::format("%s-%s", to_zstring_view(host_proc), get_host_os_name());
+#endif
         return Triplet::from_canonical_name(std::move(canonical_name));
     }
 
