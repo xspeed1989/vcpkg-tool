@@ -1176,7 +1176,7 @@ namespace vcpkg::PostBuildLint
                     if (!build_info.policies.is_enabled(BuildPolicy::ONLY_RELEASE_CRT))
                     {
                         error_count += check_crt_linkage_of_libs(
-                            BuildType(ConfigurationType::DEBUG, build_info.crt_linkage), debug_libs, toolset.dumpbin);
+                            BuildType(ConfigurationType::DEBUG, build_info.debug_crt_linkage), debug_libs, toolset.dumpbin);
                     }
                     error_count += check_crt_linkage_of_libs(
                         BuildType(ConfigurationType::RELEASE, build_info.crt_linkage), release_libs, toolset.dumpbin);

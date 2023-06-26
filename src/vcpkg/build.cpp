@@ -293,6 +293,7 @@ namespace vcpkg
     namespace BuildInfoRequiredField
     {
         static const std::string CRT_LINKAGE = "CRTLinkage";
+        static const std::string CRT_LINKAGE_DEBUG = "CRTLinkageDebug";
         static const std::string LIBRARY_LINKAGE = "LibraryLinkage";
     }
 
@@ -1526,7 +1527,6 @@ namespace vcpkg
         {
             std::string crt_linkage_as_string;
             parser.required_field(BuildInfoRequiredField::CRT_LINKAGE, crt_linkage_as_string);
-
             auto crtlinkage = to_linkage_type(crt_linkage_as_string);
             if (const auto p = crtlinkage.get())
             {
@@ -1536,6 +1536,17 @@ namespace vcpkg
             {
                 Checks::msg_exit_with_message(
                     VCPKG_LINE_INFO, msgInvalidLinkage, msg::system_name = "crt", msg::value = crt_linkage_as_string);
+            }
+            std::string debug_crt_linkage_as_string;
+            parser.required_field(BuildInfoRequiredField::CRT_LINKAGE_DEBUG, debug_crt_linkage_as_string);
+            auto crtlinkage_debug = to_linkage_type(debug_crt_linkage_as_string);
+            if (const auto p = crtlinkage_debug.get())
+            {
+                build_info.debug_crt_linkage = *p;
+            }
+            else
+            {
+                build_info.debug_crt_linkage = build_info.crt_linkage;
             }
         }
 

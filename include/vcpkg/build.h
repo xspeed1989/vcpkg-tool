@@ -348,6 +348,7 @@ namespace vcpkg
     struct BuildInfo
     {
         LinkageType crt_linkage = LinkageType::DYNAMIC;
+        LinkageType debug_crt_linkage = LinkageType::DYNAMIC;
         LinkageType library_linkage = LinkageType::DYNAMIC;
 
         Optional<std::string> version;
