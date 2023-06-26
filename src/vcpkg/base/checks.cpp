@@ -13,19 +13,13 @@ namespace
     {
         return LocalizedString::from_raw(fmt::format("{}: ", line_info));
     }
-    void (*g_shutdown_handler)() = nullptr;
+
 }
+
+std::string vcpkg::LineInfo::to_string() const { return fmt::format("{}({})", file_name, line_number); }
 
 namespace vcpkg
 {
-    void Checks::register_global_shutdown_handler(void (*func)())
-    {
-        if (g_shutdown_handler)
-            // Setting the handler twice is a program error. Terminate.
-            std::abort();
-        g_shutdown_handler = func;
-    }
-
     [[noreturn]] void Checks::final_cleanup_and_exit(const int exit_code)
     {
         static std::atomic<bool> have_entered{false};
@@ -38,7 +32,7 @@ namespace vcpkg
 #endif
         }
 
-        if (g_shutdown_handler) g_shutdown_handler();
+        on_final_cleanup_and_exit();
 
         fflush(nullptr);
 
@@ -90,12 +84,6 @@ namespace vcpkg
         exit_fail(line_info);
     }
 
-    [[noreturn]] void Checks::exit_with_message_and_line(const LineInfo& line_info, StringView error_message)
-    {
-        msg::println(Color::error, locale_invariant_lineinfo(line_info).append_raw(error_message));
-        exit_fail(line_info);
-    }
-
     void Checks::check_exit(const LineInfo& line_info, bool expression)
     {
         if (!expression)
@@ -114,7 +102,13 @@ namespace vcpkg
     {
         if (!expression)
         {
-            exit_with_message(line_info, error_message);
+            msg::println(Color::error,
+                         msg::format(msg::msgInternalErrorMessage)
+                             .append(locale_invariant_lineinfo(line_info))
+                             .append_raw(error_message)
+                             .append_raw('\n')
+                             .append(msg::msgInternalErrorMessageContact));
+            exit_fail(line_info);
         }
     }
 

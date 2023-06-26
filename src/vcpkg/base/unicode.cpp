@@ -31,7 +31,10 @@ namespace vcpkg::Unicode
         }
     }
 
-    int utf8_code_unit_count(char code_unit) noexcept { return utf8_code_unit_count(utf8_code_unit_kind(code_unit)); }
+    int utf8_code_unit_count(char code_unit) noexcept
+    {
+        return utf8_code_unit_count(utf8_code_unit_kind(static_cast<unsigned char>(code_unit)));
+    }
 
     static constexpr int utf8_encode_code_unit_count(char32_t code_point) noexcept
     {
@@ -103,7 +106,7 @@ namespace vcpkg::Unicode
         }
 
         auto code_unit = *first;
-        auto kind = utf8_code_unit_kind(code_unit);
+        auto kind = utf8_code_unit_kind(static_cast<unsigned char>(code_unit));
         const int count = utf8_code_unit_count(kind);
 
         const char* it = first + 1;
@@ -137,7 +140,7 @@ namespace vcpkg::Unicode
         constexpr unsigned char continue_mask = 0b0011'1111;
         for (int byte = 1; byte < count; ++byte)
         {
-            code_unit = static_cast<unsigned char>(*it++);
+            code_unit = *it++;
 
             kind = utf8_code_unit_kind(code_unit);
             if (kind == Utf8CodeUnitKind::Invalid)
@@ -183,31 +186,19 @@ namespace vcpkg::Unicode
         return res;
     }
 
-    struct Utf8Category : std::error_category
+    static LocalizedString message(utf8_errc condition)
     {
-        const char* name() const noexcept override { return "utf8"; }
-
-        std::string message(int condition) const override
+        switch (condition)
         {
-            switch (static_cast<utf8_errc>(condition))
-            {
-                case utf8_errc::NoError: return msg::format(msgNoError).extract_data();
-                case utf8_errc::InvalidCodeUnit: return msg::format(msgInvalidCodeUnit).extract_data();
-                case utf8_errc::InvalidCodePoint:
-                    return msg::format(msgInvalidCodePoint).append_raw(" (>0x10FFFF)").extract_data();
-                case utf8_errc::PairedSurrogates: return msg::format(msgPairedSurrogatesAreInvalid).extract_data();
-                case utf8_errc::UnexpectedContinue: return msg::format(msgContinueCodeUnitInStart).extract_data();
-                case utf8_errc::UnexpectedStart: return msg::format(msgStartCodeUnitInContinue).extract_data();
-                case utf8_errc::UnexpectedEof: return msg::format(msgEndOfStringInCodeUnit).extract_data();
-                default: Checks::unreachable(VCPKG_LINE_INFO);
-            }
+            case utf8_errc::NoError: return msg::format(msgNoError);
+            case utf8_errc::InvalidCodeUnit: return msg::format(msgInvalidCodeUnit);
+            case utf8_errc::InvalidCodePoint: return msg::format(msgInvalidCodePoint).append_raw(" (>0x10FFFF)");
+            case utf8_errc::PairedSurrogates: return msg::format(msgPairedSurrogatesAreInvalid);
+            case utf8_errc::UnexpectedContinue: return msg::format(msgContinueCodeUnitInStart);
+            case utf8_errc::UnexpectedStart: return msg::format(msgStartCodeUnitInContinue);
+            case utf8_errc::UnexpectedEof: return msg::format(msgEndOfStringInCodeUnit);
+            default: Checks::unreachable(VCPKG_LINE_INFO);
         }
-    };
-
-    const std::error_category& utf8_category() noexcept
-    {
-        static const Utf8Category t;
-        return t;
     }
 
     char const* Utf8Decoder::pointer_to_current() const noexcept
@@ -258,7 +249,8 @@ namespace vcpkg::Unicode
         const auto err = next();
         if (err != utf8_errc::NoError)
         {
-            vcpkg::Checks::exit_with_message(VCPKG_LINE_INFO, "utf-8 error: %s", std::error_code(err).message());
+            Checks::msg_exit_with_error(VCPKG_LINE_INFO,
+                                        msg::format(msgUtf8ConversionFailed).append_raw(": ").append(message(err)));
         }
 
         return *this;

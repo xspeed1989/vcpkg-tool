@@ -28,10 +28,16 @@ Param(
     [ValidateNotNullOrEmpty()]
     [string]$Filter,
     [Parameter(Mandatory = $false)]
-    [string]$VcpkgExe
+    [string]$VcpkgExe,
+    [Parameter(Mandatory = $false, HelpMessage="Run artifacts tests, only usable when vcpkg was built with VCPKG_ARTIFACTS_DEVELOPMENT=ON")]
+    [switch]$RunArtifactsTests
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    Write-Error "vcpkg end to end tests must use pwsh rather than Windows PowerShell"
+}
 
 if ($IsLinux) {
     $Triplet = 'x64-linux'
@@ -66,7 +72,9 @@ if ([string]::IsNullOrEmpty($VcpkgExe))
     }
 }
 
-$VcpkgExe = (Get-Item $VcpkgExe).FullName
+$VcpkgItem = Get-Item $VcpkgExe
+$VcpkgExe = $VcpkgItem.FullName
+$VcpkgPs1 = Join-Path $VcpkgItem.Directory "vcpkg.ps1"
 
 [Array]$AllTests = Get-ChildItem $PSScriptRoot/end-to-end-tests-dir/*.ps1
 if ($Filter -ne $Null) {
@@ -92,7 +100,11 @@ $envvars = $envvars_clear + @("VCPKG_DOWNLOADS", "X_VCPKG_REGISTRIES_CACHE", "PA
 
 foreach ($Test in $AllTests)
 {
-    Write-Host "[end-to-end-tests.ps1] [$n/$m] Running suite $Test"
+    if ($env:GITHUB_ACTIONS) {
+        Write-Host -ForegroundColor Green "::group::[end-to-end-tests.ps1] [$n/$m] Running suite $Test"
+    } else {
+        Write-Host -ForegroundColor Green "[end-to-end-tests.ps1] [$n/$m] Running suite $Test"
+    }
 
     $envbackup = @{}
     foreach ($var in $envvars)
@@ -129,8 +141,11 @@ foreach ($Test in $AllTests)
             }
         }
     }
+    if ($env:GITHUB_ACTIONS) {
+        Write-Host "::endgroup::"
+    }
     $n += 1
 }
 
-Write-Host "[end-to-end-tests.ps1] All tests passed."
-$LASTEXITCODE = 0
+Write-Host -ForegroundColor Green "[end-to-end-tests.ps1] All tests passed."
+$global:LASTEXITCODE = 0

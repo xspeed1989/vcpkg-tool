@@ -1,7 +1,7 @@
-#include <vcpkg/base/system.print.h>
+#include <vcpkg/base/strings.h>
 
 #include <vcpkg/commands.h>
-#include <vcpkg/help.h>
+#include <vcpkg/commands.help.h>
 #include <vcpkg/input.h>
 #include <vcpkg/metrics.h>
 #include <vcpkg/packagespec.h>
@@ -11,13 +11,15 @@ namespace vcpkg
 {
     PackageSpec check_and_get_package_spec(std::string&& spec_string,
                                            Triplet default_triplet,
-                                           ZStringView example_text,
+                                           bool& default_triplet_used,
+                                           const LocalizedString& example_text,
                                            const VcpkgPaths& paths)
     {
         const std::string as_lowercase = Strings::ascii_to_lowercase(std::move(spec_string));
 
         auto expected_spec =
-            parse_qualified_specifier(as_lowercase).then(&ParsedQualifiedSpecifier::to_package_spec, default_triplet);
+            parse_qualified_specifier(as_lowercase)
+                .then(&ParsedQualifiedSpecifier::to_package_spec, default_triplet, default_triplet_used);
         if (auto spec = expected_spec.get())
         {
             check_triplet(spec->triplet(), paths);
@@ -25,8 +27,8 @@ namespace vcpkg
         }
 
         // Intentionally show the lowercased string
-        msg::write_unlocalized_text_to_stdout(Color::error, expected_spec.error());
-        msg::write_unlocalized_text_to_stdout(Color::none, example_text);
+        msg::println(Color::error, expected_spec.error());
+        msg::println(Color::none, example_text);
         Checks::exit_fail(VCPKG_LINE_INFO);
     }
 
@@ -35,21 +37,22 @@ namespace vcpkg
         if (!paths.is_valid_triplet(t))
         {
             msg::println_error(msgInvalidTriplet, msg::triplet = t);
-            LockGuardPtr<Metrics>(g_metrics)->track_string_property(StringMetric::Error,
-                                                                    "invalid triplet: " + t.to_string());
             Help::help_topic_valid_triplet(paths);
             Checks::exit_fail(VCPKG_LINE_INFO);
         }
     }
 
-    FullPackageSpec check_and_get_full_package_spec(std::string&& full_package_spec_as_string,
+    FullPackageSpec check_and_get_full_package_spec(std::string full_package_spec_as_string,
                                                     Triplet default_triplet,
-                                                    ZStringView example_text,
+                                                    bool& default_triplet_used,
+                                                    const LocalizedString& example_text,
                                                     const VcpkgPaths& paths)
     {
-        const std::string as_lowercase = Strings::ascii_to_lowercase(std::move(full_package_spec_as_string));
-        auto expected_spec = parse_qualified_specifier(as_lowercase)
-                                 .then(&ParsedQualifiedSpecifier::to_full_spec, default_triplet, ImplicitDefault::YES);
+        auto expected_spec = parse_qualified_specifier(full_package_spec_as_string)
+                                 .then(&ParsedQualifiedSpecifier::to_full_spec,
+                                       default_triplet,
+                                       default_triplet_used,
+                                       ImplicitDefault::YES);
         if (const auto spec = expected_spec.get())
         {
             check_triplet(spec->package_spec.triplet(), paths);
@@ -57,8 +60,8 @@ namespace vcpkg
         }
 
         // Intentionally show the lowercased string
-        msg::write_unlocalized_text_to_stdout(Color::error, expected_spec.error());
-        msg::write_unlocalized_text_to_stdout(Color::none, example_text);
+        msg::println(Color::error, expected_spec.error());
+        msg::println(Color::none, example_text);
         Checks::exit_fail(VCPKG_LINE_INFO);
     }
 }
